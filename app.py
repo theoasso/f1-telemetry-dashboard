@@ -54,14 +54,25 @@ TEAM_COLORS = {
 @st.cache_resource(show_spinner="Chargement de la session FastF1...")
 def load_session(year: int, gp: str, session_type: str):
     session = fastf1.get_session(year, gp, session_type)
-    # Paramètres explicites : sur certains environnements, les valeurs par
-    # défaut de FastF1 peuvent ne pas charger les tours correctement.
-    session.load(laps=True, telemetry=True, weather=False, messages=False)
+
+    # 1. Chargement des tours/temps (léger, fiable) — indispensable.
+    session.load(laps=True, telemetry=False, weather=False, messages=False)
     if session.laps is None or session.laps.empty:
         raise RuntimeError(
             "Aucun tour n'a été chargé pour cette session — la session n'existe "
             "peut-être pas encore, ou les données ne sont pas disponibles côté FastF1."
         )
+
+    # 2. Tentative de chargement de la télémétrie détaillée (plus lourd, peut
+    # échouer sur certains environnements cloud à cause de limitations réseau
+    # côté serveurs F1). Si ça échoue, on continue quand même : les onglets
+    # dégradation pneus et rythme de course n'en ont pas besoin.
+    try:
+        session.load(laps=True, telemetry=True, weather=False, messages=False)
+        session.telemetry_available = True
+    except Exception:
+        session.telemetry_available = False
+
     return session
 
 
@@ -108,6 +119,15 @@ if session is None:
     st.stop()
 
 drivers = get_driver_list(session)
+
+if not getattr(session, "telemetry_available", True):
+    st.warning(
+        "⚠️ La télémétrie détaillée (vitesse, freinage) n'a pas pu être chargée pour "
+        "cette session — probablement une limitation réseau temporaire côté serveur. "
+        "Les onglets **Comparaison de tours** et **Carte du circuit** seront indisponibles, "
+        "mais **Dégradation pneus** et **Rythme de course** fonctionnent normalement "
+        "(ils n'ont besoin que des temps au tour)."
+    )
 
 tab1, tab2, tab3, tab4 = st.tabs(
     ["🔁 Comparaison de tours", "🛞 Dégradation pneus", "📊 Rythme de course", "🗺️ Carte du circuit"]
