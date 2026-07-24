@@ -24,6 +24,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
+import tempfile
 
 # ---------------------------------------------------------------------------
 # Configuration générale
@@ -31,7 +32,10 @@ import os
 
 st.set_page_config(page_title="F1 Telemetry Dashboard", layout="wide", page_icon="🏎️")
 
-CACHE_DIR = "f1_cache"
+# Sur certains environnements cloud, un dossier relatif peut ne pas être
+# accessible en écriture d'un run à l'autre : on utilise le dossier temporaire
+# du système, garanti disponible en écriture.
+CACHE_DIR = os.path.join(tempfile.gettempdir(), "f1_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
@@ -50,7 +54,14 @@ TEAM_COLORS = {
 @st.cache_resource(show_spinner="Chargement de la session FastF1...")
 def load_session(year: int, gp: str, session_type: str):
     session = fastf1.get_session(year, gp, session_type)
-    session.load()
+    # Paramètres explicites : sur certains environnements, les valeurs par
+    # défaut de FastF1 peuvent ne pas charger les tours correctement.
+    session.load(laps=True, telemetry=True, weather=False, messages=False)
+    if session.laps is None or session.laps.empty:
+        raise RuntimeError(
+            "Aucun tour n'a été chargé pour cette session — la session n'existe "
+            "peut-être pas encore, ou les données ne sont pas disponibles côté FastF1."
+        )
     return session
 
 
