@@ -25,6 +25,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 import tempfile
+import shutil
 
 # ---------------------------------------------------------------------------
 # Configuration générale
@@ -37,6 +38,16 @@ st.set_page_config(page_title="F1 Telemetry Dashboard", layout="wide", page_icon
 # du système, garanti disponible en écriture.
 CACHE_DIR = os.path.join(tempfile.gettempdir(), "f1_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+# Si un dossier "demo_cache" a été inclus dans le projet (données pré-
+# téléchargées via prepare_demo_data.py), on copie son contenu dans le cache
+# actif : ces sessions précises seront alors disponibles instantanément, sans
+# avoir besoin de contacter les serveurs F1 (utile si le réseau du serveur
+# cloud est limité).
+DEMO_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo_cache")
+if os.path.isdir(DEMO_CACHE_DIR):
+    shutil.copytree(DEMO_CACHE_DIR, CACHE_DIR, dirs_exist_ok=True)
+
 fastf1.Cache.enable_cache(CACHE_DIR)
 
 TEAM_COLORS = {
@@ -86,6 +97,13 @@ def get_driver_list(session):
 
 st.sidebar.title("🏎️ F1 Data Explorer")
 st.sidebar.markdown("Basé sur [FastF1](https://docs.fastf1.dev/) — données télémétrie officielles.")
+
+if os.path.isdir(DEMO_CACHE_DIR):
+    st.sidebar.info(
+        "💡 Sessions garanties en ligne (données pré-chargées) : "
+        "**2024 Monza R**, **2024 Bahrain R**. D'autres sessions peuvent "
+        "aussi fonctionner selon la disponibilité réseau du serveur."
+    )
 
 year = st.sidebar.selectbox("Saison", list(range(2026, 2017, -1)), index=1)
 gp = st.sidebar.text_input("Grand Prix (nom ou round)", value="Monza")
